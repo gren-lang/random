@@ -42,8 +42,8 @@ by M. E. O'Neil. It is not cryptographically secure.
 -}
 
 import Basics exposing (..)
+import Math exposing (abs, remainderBy)
 import Bitwise
-import List exposing ((::))
 import Platform
 import Platform.Cmd exposing (Cmd)
 import Task exposing (Task)
@@ -78,25 +78,25 @@ int a b =
     Generator
         (\seed0 ->
             let
-                ( lo, hi ) =
+                { lo = lo, hi = hi } =
                     if a < b then
-                        ( a, b )
+                        { lo = a, hi = b }
                     else
-                        ( b, a )
+                        { lo = b, hi = a }
 
                 range =
                     hi - lo + 1
             in
                 -- fast path for power of 2
                 if (Bitwise.and (range - 1) range) == 0 then
-                    ( (Bitwise.shiftRightZfBy 0 (Bitwise.and (range - 1) (peel seed0))) + lo, next seed0 )
+                    { value = (Bitwise.shiftRightZfBy 0 (Bitwise.and (range - 1) (peel seed0))) + lo, seed = next seed0 }
                 else
                     let
                         threshhold =
                             -- essentially: period % max
                             Bitwise.shiftRightZfBy 0 (remainderBy range (Bitwise.shiftRightZfBy 0 -range))
 
-                        accountForBias : Seed -> ( Int, Seed )
+                        accountForBias : Seed -> { value : Int, seed : Seed }
                         accountForBias seed =
                             let
                                 x =
@@ -109,7 +109,7 @@ int a b =
                                     -- in practice this recurses almost never
                                     accountForBias seedN
                                 else
-                                    ( remainderBy range x + lo, seedN )
+                                    { value = remainderBy range x + lo, seed = seedN }
                     in
                         accountForBias seed0
         )
@@ -184,7 +184,7 @@ float a b =
             scaled =
                 val * range + a
         in
-            ( scaled, next seed1 )
+            { value = scaled, seed = next seed1 }
         )
 
 
@@ -204,7 +204,7 @@ tons of nice helpers.
 -}
 constant : a -> Generator a
 constant value =
-  Generator (\seed -> (value, seed))
+  Generator (\seed -> { value = value, seed = seed })
 
 
 
@@ -223,9 +223,9 @@ a point in a certain 2D space:
 Maybe you are doing an animation with SVG and want to randomly generate some
 entities?
 -}
-pair : Generator a -> Generator b -> Generator (a,b)
+pair : Generator a -> Generator b -> Generator { a : a, b : b }
 pair genA genB =
-  map2 (\a b -> (a,b)) genA genB
+  map2 (\a b -> { a = a, b = b }) genA genB
 
 
 {-| Generate a list of random values.
@@ -258,14 +258,14 @@ list n (Generator gen) =
   )
 
 
-listHelp : List a -> Int -> (Seed -> (a,Seed)) -> Seed -> (List a, Seed)
+listHelp : List a -> Int -> (Seed -> { value : a, seed : Seed }) -> Seed -> { value : List a, seed : Seed }
 listHelp revList n gen seed =
   if n < 1 then
-    (revList, seed)
+    { value = revList, seed = seed}
 
   else
     let
-      (value, newSeed) =
+      { value = value, seed = newSeed }  =
         gen seed
     in
       listHelp (value :: revList) (n-1) gen newSeed
@@ -299,9 +299,9 @@ uniform value valueList =
   weighted (addOne value) (List.map addOne valueList)
 
 
-addOne : a -> (Float, a)
+addOne : a -> { weight : Float, value : a }
 addOne value =
-  ( 1, value )
+  { weight = 1, value = value }
 
 
 {-| Generate values with a _weighted_ probability. Say we want to simulate a
@@ -331,10 +331,10 @@ add up your weights into a `total`, and from there, the probablity of each case
 is `weight / total`. Negative weights do not really make sense, so I just flip
 them to be positive.
 -}
-weighted : (Float, a) -> List (Float, a) -> Generator a
+weighted : { weight : Float, value : a } -> List { weight : Float, value : a } -> Generator a
 weighted first others =
   let
-    normalize (weight, _) =
+    normalize { weight = weight } =
       abs weight
 
     total =
@@ -343,13 +343,13 @@ weighted first others =
   map (getByWeight first others) (float 0 total)
 
 
-getByWeight : (Float, a) -> List (Float, a) -> Float -> a
-getByWeight (weight, value) others countdown =
-  case others of
-    [] ->
+getByWeight : { weight : Float, value : a } -> List { weight : Float, value : a } -> Float -> a
+getByWeight {weight = weight, value = value} others countdown =
+  case Array.popFirst others of
+    Nothing ->
       value
 
-    second :: otherOthers ->
+    Just { first = second, rest = otherOthers } ->
       if countdown <= abs weight then
         value
       else
@@ -392,9 +392,9 @@ map : (a -> b) -> Generator a -> Generator b
 map func (Generator genA) =
   Generator (\seed0 ->
     let
-      (a, seed1) = genA seed0
+      { value = a, seed = seed1 } = genA seed0
     in
-      (func a, seed1)
+      { value = func a, seed = seed1 }
   )
 
 
@@ -437,10 +437,10 @@ map2 : (a -> b -> c) -> Generator a -> Generator b -> Generator c
 map2 func (Generator genA) (Generator genB) =
   Generator (\seed0 ->
     let
-      (a, seed1) = genA seed0
-      (b, seed2) = genB seed1
+      { value = a, seed = seed1 } = genA seed0
+      { value = b, seed = seed2 } = genB seed1
     in
-      (func a b, seed2)
+      { value = func a b, seed = seed2 }
   )
 
 
@@ -471,11 +471,11 @@ map3 : (a -> b -> c -> d) -> Generator a -> Generator b -> Generator c -> Genera
 map3 func (Generator genA) (Generator genB) (Generator genC) =
   Generator (\seed0 ->
     let
-      (a, seed1) = genA seed0
-      (b, seed2) = genB seed1
-      (c, seed3) = genC seed2
+      { value = a, seed = seed1 } = genA seed0
+      { value = b, seed = seed2 } = genB seed1
+      { value = c, seed = seed3 } = genC seed2
     in
-      (func a b c, seed3)
+      { value = func a b c, seed = seed3 }
   )
 
 
@@ -525,12 +525,12 @@ map4 : (a -> b -> c -> d -> e) -> Generator a -> Generator b -> Generator c -> G
 map4 func (Generator genA) (Generator genB) (Generator genC) (Generator genD) =
   Generator (\seed0 ->
     let
-      (a, seed1) = genA seed0
-      (b, seed2) = genB seed1
-      (c, seed3) = genC seed2
-      (d, seed4) = genD seed3
+      { value = a, seed = seed1 } = genA seed0
+      { value = b, seed = seed2 } = genB seed1
+      { value = c, seed = seed3 } = genC seed2
+      { value = d, seed = seed4 } = genD seed3
     in
-      (func a b c d, seed4)
+      { value = func a b c d, seed = seed4 }
   )
 
 
@@ -546,13 +546,13 @@ map5 : (a -> b -> c -> d -> e -> f) -> Generator a -> Generator b -> Generator c
 map5 func (Generator genA) (Generator genB) (Generator genC) (Generator genD) (Generator genE) =
   Generator (\seed0 ->
     let
-      (a, seed1) = genA seed0
-      (b, seed2) = genB seed1
-      (c, seed3) = genC seed2
-      (d, seed4) = genD seed3
-      (e, seed5) = genE seed4
+      { value = a, seed = seed1 } = genA seed0
+      { value = b, seed = seed2 } = genB seed1
+      { value = c, seed = seed3 } = genC seed2
+      { value = d, seed = seed4 } = genD seed3
+      { value = e, seed = seed5 } = genE seed4
     in
-      (func a b c d e, seed5)
+      { value = func a b c d e, seed = seed5 }
   )
 
 
@@ -581,7 +581,7 @@ andThen : (a -> Generator b) -> Generator a -> Generator b
 andThen callback (Generator genA) =
   Generator (\seed ->
     let
-      (result, newSeed) = genA seed
+      { value = result, seed = newSeed } = genA seed
       (Generator genB) = callback result
     in
       genB newSeed
@@ -613,11 +613,11 @@ This is a pretty subtle issue, so I recommend reading more about it
 **Note:** You can delay evaluation with `andThen` too. The thing that matters
 is that you have a function call that delays the creation of the generator!
 -}
-lazy : (() -> Generator a) -> Generator a
+lazy : (Unit -> Generator a) -> Generator a
 lazy callback =
   Generator (\seed ->
     let
-      (Generator gen) = callback ()
+      (Generator gen) = callback Unit
     in
       gen seed
   )
@@ -732,7 +732,7 @@ more about JSON decoders [here][json] to see the similarity.
 [json]: https://guide.elm-lang.org/interop/json.html
 -}
 type Generator a =
-    Generator (Seed -> (a, Seed))
+    Generator (Seed -> { value : a, seed : Seed })
 
 
 {-| So you need _reproducable_ randomness for some reason.
@@ -762,7 +762,7 @@ Threading seeds around is not super fun, so if you really need this, it is
 best to build your `Generator` like normal and then just `step` it all at
 once at the top of your program.
 -}
-step : Generator a -> Seed -> (a, Seed)
+step : Generator a -> Seed -> { value : a, seed : Seed }
 step (Generator generator) seed =
   generator seed
 
@@ -875,15 +875,15 @@ init =
   Task.andThen (\time -> Task.succeed (initialSeed (Time.posixToMillis time))) Time.now
 
 
-onEffects : Platform.Router msg Never -> List (MyCmd msg) -> Seed -> Task Never Seed
+onEffects : Platform.Router msg Never -> Array (MyCmd msg) -> Seed -> Task Never Seed
 onEffects router commands seed =
-  case commands of
-    [] ->
+  case Array.popFirst commands of
+    Nothing ->
       Task.succeed seed
 
-    Generate generator :: rest ->
+    Just { first = Generate generator, rest = rest } ->
       let
-        (value, newSeed) =
+        { value = value, seed = newSeed } =
           step generator seed
       in
           Task.andThen
