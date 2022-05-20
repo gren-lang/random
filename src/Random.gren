@@ -232,18 +232,18 @@ pair genA genB =
 
     import Random
 
-    tenFractions : Random.Generator (List Float)
+    tenFractions : Random.Generator (Array Float)
     tenFractions =
         Random.list 10 (Random.float 0 1)
 
-    fiveGrades : Random.Generator (List Int)
+    fiveGrades : Random.Generator (Array Int)
     fiveGrades =
         Random.list 5 (int 0 100)
 
 If you want to generate a list with a random length, you need to use
 [`andThen`](#andThen) like this:
 
-    fiveToTenDigits : Random.Generator (List Int)
+    fiveToTenDigits : Random.Generator (Array Int)
     fiveToTenDigits =
         Random.int 5 10
           |> Random.andThen (\len -> Random.list len (Random.int 0 9))
@@ -251,14 +251,14 @@ If you want to generate a list with a random length, you need to use
 This generator gets a random integer between five and ten **and then**
 uses that to generate a random list of digits.
 -}
-list : Int -> Generator a -> Generator (List a)
+list : Int -> Generator a -> Generator (Array a)
 list n (Generator gen) =
   Generator (\seed ->
     listHelp [] n gen seed
   )
 
 
-listHelp : List a -> Int -> (Seed -> { value : a, seed : Seed }) -> Seed -> { value : List a, seed : Seed }
+listHelp : Array a -> Int -> (Seed -> { value : a, seed : Seed }) -> Seed -> { value : Array a, seed : Seed }
 listHelp revList n gen seed =
   if n < 1 then
     { value = revList, seed = seed}
@@ -268,7 +268,7 @@ listHelp revList n gen seed =
       { value = value, seed = newSeed }  =
         gen seed
     in
-      listHelp (value :: revList) (n-1) gen newSeed
+      listHelp (Array.pushFirst value revList) (n-1) gen newSeed
 
 
 
@@ -288,15 +288,15 @@ cards:
 
 That generator produces all `Suit` values with equal probability, 25% each.
 
-**Note:** Why not have `uniform : List a -> Generator a` as the API? It looks
+**Note:** Why not have `uniform : Array a -> Generator a` as the API? It looks
 a little prettier in code, but it leads to an awkward question. What do you do
 with `uniform []`? How can it produce an `Int` or `Float`? The current API
 guarantees that we always have *at least* one value, so we never run into that
 question!
 -}
-uniform : a -> List a -> Generator a
+uniform : a -> Array a -> Generator a
 uniform value valueList =
-  weighted (addOne value) (List.map addOne valueList)
+  weighted (addOne value) (Array.map addOne valueList)
 
 
 addOne : a -> { weight : Float, value : a }
@@ -331,19 +331,24 @@ add up your weights into a `total`, and from there, the probablity of each case
 is `weight / total`. Negative weights do not really make sense, so I just flip
 them to be positive.
 -}
-weighted : { weight : Float, value : a } -> List { weight : Float, value : a } -> Generator a
+weighted : { weight : Float, value : a } -> Array { weight : Float, value : a } -> Generator a
 weighted first others =
   let
     normalize { weight = weight } =
       abs weight
 
     total =
-      normalize first + List.sum (List.map normalize others)
+      normalize first + arraySum (Array.map normalize others)
   in
   map (getByWeight first others) (float 0 total)
 
+{-| TODO: Add to Array module?
+-}
+arraySum : Array number -> number
+arraySum =
+  Array.foldl (+) 0
 
-getByWeight : { weight : Float, value : a } -> List { weight : Float, value : a } -> Float -> a
+getByWeight : { weight : Float, value : a } -> Array { weight : Float, value : a } -> Float -> a
 getByWeight {weight = weight, value = value} others countdown =
   case Array.popFirst others of
     Nothing ->
@@ -421,7 +426,7 @@ Now whenever we run the `enemy` generator we get an enemy with full health,
 no rotation, and a random position! Now say we want to start with between
 five and ten enemies on screen:
 
-    initialEnemies : Random.Generator (List Enemy)
+    initialEnemies : Random.Generator (Array Enemy)
     initialEnemies =
       Random.int 5 10
         |> Random.andThen (\num -> Random.list num enemy)
@@ -593,7 +598,7 @@ random number of probabilities:
 
     import Random
 
-    probabilities : Random.Generator (List Float)
+    probabilities : Random.Generator (Array Float)
     probabilities =
       Random.andThen identity <|
         Random.uniform
