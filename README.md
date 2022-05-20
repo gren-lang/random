@@ -7,7 +7,7 @@ Need to generate random numbers? How about random game boards? Or random positio
 
 This package will help you build a random `Generator` like this:
 
-```elm
+```gren
 import Random
 
 probability : Random.Generator Float
