@@ -1,7 +1,7 @@
 effect module Random where { command = MyCmd } exposing
   ( Generator, Seed
   , int, float, uniform, weighted, constant
-  , list, pair
+  , array, pair
   , map, map2, map3, map4, map5
   , andThen, lazy
   , minInt, maxInt
@@ -25,7 +25,7 @@ by M. E. O'Neil. It is not cryptographically secure.
 @docs int, float, uniform, weighted, constant
 
 # Data Structures
-@docs pair, list
+@docs pair, array
 
 # Mapping
 @docs map, map2, map3, map4, map5
@@ -228,47 +228,47 @@ pair genA genB =
   map2 (\a b -> { first = a, second = b }) genA genB
 
 
-{-| Generate a list of random values.
+{-| Generate an array of random values.
 
     import Random
 
     tenFractions : Random.Generator (Array Float)
     tenFractions =
-        Random.list 10 (Random.float 0 1)
+        Random.array 10 (Random.float 0 1)
 
     fiveGrades : Random.Generator (Array Int)
     fiveGrades =
-        Random.list 5 (int 0 100)
+        Random.array 5 (int 0 100)
 
-If you want to generate a list with a random length, you need to use
+If you want to generate an array with a random length, you need to use
 [`andThen`](#andThen) like this:
 
     fiveToTenDigits : Random.Generator (Array Int)
     fiveToTenDigits =
         Random.int 5 10
-          |> Random.andThen (\len -> Random.list len (Random.int 0 9))
+          |> Random.andThen (\len -> Random.array len (Random.int 0 9))
 
 This generator gets a random integer between five and ten **and then**
-uses that to generate a random list of digits.
+uses that to generate a random array of digits.
 -}
-list : Int -> Generator a -> Generator (Array a)
-list n (Generator gen) =
+array : Int -> Generator a -> Generator (Array a)
+array n (Generator gen) =
   Generator (\seed ->
-    listHelp [] n gen seed
+    arrayHelp [] n gen seed
   )
 
 
-listHelp : Array a -> Int -> (Seed -> { value : a, seed : Seed }) -> Seed -> { value : Array a, seed : Seed }
-listHelp revList n gen seed =
+arrayHelp : Array a -> Int -> (Seed -> { value : a, seed : Seed }) -> Seed -> { value : Array a, seed : Seed }
+arrayHelp revArray n gen seed =
   if n < 1 then
-    { value = revList, seed = seed}
+    { value = revArray, seed = seed}
 
   else
     let
       { value = value, seed = newSeed }  =
         gen seed
     in
-      listHelp (Array.pushFirst value revList) (n-1) gen newSeed
+      arrayHelp (Array.pushFirst value revArray) (n-1) gen newSeed
 
 
 
@@ -295,8 +295,8 @@ guarantees that we always have *at least* one value, so we never run into that
 question!
 -}
 uniform : a -> Array a -> Generator a
-uniform value valueList =
-  weighted (addOne value) (Array.map addOne valueList)
+uniform value valueArray =
+  weighted (addOne value) (Array.map addOne valueArray)
 
 
 addOne : a -> { weight : Float, value : a }
@@ -424,7 +424,7 @@ five and ten enemies on screen:
     initialEnemies : Random.Generator (Array Enemy)
     initialEnemies =
       Random.int 5 10
-        |> Random.andThen (\num -> Random.list num enemy)
+        |> Random.andThen (\num -> Random.array num enemy)
 
 We will generate a number between five and ten, **and then** generate
 that number of enemies!
@@ -559,7 +559,7 @@ map5 func (Generator genA) (Generator genB) (Generator genC) (Generator genD) (G
 {-| Generate fancy random values.
 
 We have seen examples of how `andThen` can be used to generate variable length
-lists in the [`list`](#list) and [`map2`](#map2) docs. We saw how it could help
+arrays in the [`array`](#array) and [`map2`](#map2) docs. We saw how it could help
 generate a quadtree in the [`map4`](#map4) docs.
 
 Anything you could ever want can be defined using this operator! As one last
@@ -603,7 +603,7 @@ random number of probabilities:
               (Random.lazy (\_ -> probabilities))
           ]
 
-In 50% of cases we end the list. In 50% of cases we generate a probability and
+In 50% of cases we end the array. In 50% of cases we generate a probability and
 add it onto a random number of probabilities. The `lazy` call is crucial
 because it means we do not unroll the generator unless we need to.
 
