@@ -30,9 +30,9 @@ Now look at this [working example](https://guide.elm-lang.org/effects/random.htm
 
 ## Mindset Shift
 
-If you are coming from JavaScript, this package is usually quite surprising at first. Why not just call `Math.random()` and get random floats whenever you want? Well, all Elm functions have this “same input, same output” guarantee. That is part of what makes Elm so reliable and easy to test! But if we could generate random values anytime we want, we would have to throw that guarantee out.
+If you are coming from JavaScript, this package is usually quite surprising at first. Why not just call `Math.random()` and get random floats whenever you want? Well, all Gren functions have this “same input, same output” guarantee. That is part of what makes Gren so reliable and easy to test! But if we could generate random values anytime we want, we would have to throw that guarantee out.
 
-So instead, we create a `Generator` and hand it to the Elm runtime system to do the dirty work of generating values. We get to keep our guarantees _and_ we get random values. Great! And once people become familiar with generators, they often report that it is _easier_ than the traditional imperative APIs for most cases. For example, jump to the docs for [`Random.map4`](Random#map4) for an example of generating random [quadtrees](https://en.wikipedia.org/wiki/Quadtree) and think about what it would look like to do that in JavaScript!
+So instead, we create a `Generator` and hand it to the Gren runtime system to do the dirty work of generating values. We get to keep our guarantees _and_ we get random values. Great! And once people become familiar with generators, they often report that it is _easier_ than the traditional imperative APIs for most cases. For example, jump to the docs for [`Random.map4`](Random#map4) for an example of generating random [quadtrees](https://en.wikipedia.org/wiki/Quadtree) and think about what it would look like to do that in JavaScript!
 
 Point is, this library takes some learning, but we really think it is worth it. So hang in there, and do not hesitate to ask for help on [Slack](https://elmlang.herokuapp.com/) or [Discourse](https://discourse.elm-lang.org/)!
 
