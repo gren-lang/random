@@ -1,7 +1,7 @@
 effect module Random where { command = MyCmd } exposing
   ( Generator, Seed
   , int, float, uniform, weighted, constant
-  , list, pair
+  , array, pair
   , map, map2, map3, map4, map5
   , andThen, lazy
   , minInt, maxInt
@@ -25,7 +25,7 @@ by M. E. O'Neil. It is not cryptographically secure.
 @docs int, float, uniform, weighted, constant
 
 # Data Structures
-@docs pair, list
+@docs pair, array
 
 # Mapping
 @docs map, map2, map3, map4, map5
@@ -42,8 +42,8 @@ by M. E. O'Neil. It is not cryptographically secure.
 -}
 
 import Basics exposing (..)
+import Math exposing (abs, remainderBy)
 import Bitwise
-import List exposing ((::))
 import Platform
 import Platform.Cmd exposing (Cmd)
 import Task exposing (Task)
@@ -78,25 +78,25 @@ int a b =
     Generator
         (\seed0 ->
             let
-                ( lo, hi ) =
+                { lo, hi } =
                     if a < b then
-                        ( a, b )
+                        { lo = a, hi = b }
                     else
-                        ( b, a )
+                        { lo = b, hi = a }
 
                 range =
                     hi - lo + 1
             in
                 -- fast path for power of 2
                 if (Bitwise.and (range - 1) range) == 0 then
-                    ( (Bitwise.shiftRightZfBy 0 (Bitwise.and (range - 1) (peel seed0))) + lo, next seed0 )
+                    { value = (Bitwise.shiftRightZfBy 0 (Bitwise.and (range - 1) (peel seed0))) + lo, seed = next seed0 }
                 else
                     let
                         threshhold =
                             -- essentially: period % max
                             Bitwise.shiftRightZfBy 0 (remainderBy range (Bitwise.shiftRightZfBy 0 -range))
 
-                        accountForBias : Seed -> ( Int, Seed )
+                        accountForBias : Seed -> { value : Int, seed : Seed }
                         accountForBias seed =
                             let
                                 x =
@@ -109,7 +109,7 @@ int a b =
                                     -- in practice this recurses almost never
                                     accountForBias seedN
                                 else
-                                    ( remainderBy range x + lo, seedN )
+                                    { value = remainderBy range x + lo, seed = seedN }
                     in
                         accountForBias seed0
         )
@@ -184,7 +184,7 @@ float a b =
             scaled =
                 val * range + a
         in
-            ( scaled, next seed1 )
+            { value = scaled, seed = next seed1 }
         )
 
 
@@ -204,7 +204,7 @@ tons of nice helpers.
 -}
 constant : a -> Generator a
 constant value =
-  Generator (\seed -> (value, seed))
+  Generator (\seed -> { value = value, seed = seed })
 
 
 
@@ -216,59 +216,59 @@ a point in a certain 2D space:
 
     import Random
 
-    randomPoint : Random.Generator (Float, Float)
+    randomPoint : Random.Generator { first : Float, second : Float }
     randomPoint =
         Random.pair (Random.float -200 200) (Random.float -100 100)
 
 Maybe you are doing an animation with SVG and want to randomly generate some
 entities?
 -}
-pair : Generator a -> Generator b -> Generator (a,b)
+pair : Generator a -> Generator b -> Generator { first : a, second : b }
 pair genA genB =
-  map2 (\a b -> (a,b)) genA genB
+  map2 (\a b -> { first = a, second = b }) genA genB
 
 
-{-| Generate a list of random values.
+{-| Generate an array of random values.
 
     import Random
 
-    tenFractions : Random.Generator (List Float)
+    tenFractions : Random.Generator (Array Float)
     tenFractions =
-        Random.list 10 (Random.float 0 1)
+        Random.array 10 (Random.float 0 1)
 
-    fiveGrades : Random.Generator (List Int)
+    fiveGrades : Random.Generator (Array Int)
     fiveGrades =
-        Random.list 5 (int 0 100)
+        Random.array 5 (int 0 100)
 
-If you want to generate a list with a random length, you need to use
+If you want to generate an array with a random length, you need to use
 [`andThen`](#andThen) like this:
 
-    fiveToTenDigits : Random.Generator (List Int)
+    fiveToTenDigits : Random.Generator (Array Int)
     fiveToTenDigits =
         Random.int 5 10
-          |> Random.andThen (\len -> Random.list len (Random.int 0 9))
+          |> Random.andThen (\len -> Random.array len (Random.int 0 9))
 
 This generator gets a random integer between five and ten **and then**
-uses that to generate a random list of digits.
+uses that to generate a random array of digits.
 -}
-list : Int -> Generator a -> Generator (List a)
-list n (Generator gen) =
+array : Int -> Generator a -> Generator (Array a)
+array n (Generator gen) =
   Generator (\seed ->
-    listHelp [] n gen seed
+    arrayHelp [] n gen seed
   )
 
 
-listHelp : List a -> Int -> (Seed -> (a,Seed)) -> Seed -> (List a, Seed)
-listHelp revList n gen seed =
+arrayHelp : Array a -> Int -> (Seed -> { value : a, seed : Seed }) -> Seed -> { value : Array a, seed : Seed }
+arrayHelp revArray n gen seed =
   if n < 1 then
-    (revList, seed)
+    { value = revArray, seed = seed}
 
   else
     let
-      (value, newSeed) =
+      { value = value, seed = newSeed }  =
         gen seed
     in
-      listHelp (value :: revList) (n-1) gen newSeed
+      arrayHelp (Array.pushFirst value revArray) (n-1) gen newSeed
 
 
 
@@ -288,20 +288,20 @@ cards:
 
 That generator produces all `Suit` values with equal probability, 25% each.
 
-**Note:** Why not have `uniform : List a -> Generator a` as the API? It looks
+**Note:** Why not have `uniform : Array a -> Generator a` as the API? It looks
 a little prettier in code, but it leads to an awkward question. What do you do
 with `uniform []`? How can it produce an `Int` or `Float`? The current API
 guarantees that we always have *at least* one value, so we never run into that
 question!
 -}
-uniform : a -> List a -> Generator a
-uniform value valueList =
-  weighted (addOne value) (List.map addOne valueList)
+uniform : a -> Array a -> Generator a
+uniform value valueArray =
+  weighted (addOne value) (Array.map addOne valueArray)
 
 
-addOne : a -> (Float, a)
+addOne : a -> { weight : Float, value : a }
 addOne value =
-  ( 1, value )
+  { weight = 1, value = value }
 
 
 {-| Generate values with a _weighted_ probability. Say we want to simulate a
@@ -315,12 +315,12 @@ on ⚄ and ⚅ more often than the other faces:
     roll : Random.Generator Face
     roll =
       Random.weighted
-        (10, One)
-        [ (10, Two)
-        , (10, Three)
-        , (10, Four)
-        , (20, Five)
-        , (40, Six)
+        { weight : 10, value : One }
+        [ { weight : 10, value : Two }
+        , { weight : 10, value : Three }
+        , { weight : 10, value : Four }
+        , { weight : 20, value : Five }
+        , { weight : 40, value : Six }
         ]
 
 So there is a 40% chance of getting `Six`, a 20% chance of getting `Five`, and
@@ -331,25 +331,25 @@ add up your weights into a `total`, and from there, the probablity of each case
 is `weight / total`. Negative weights do not really make sense, so I just flip
 them to be positive.
 -}
-weighted : (Float, a) -> List (Float, a) -> Generator a
+weighted : { weight : Float, value : a } -> Array { weight : Float, value : a } -> Generator a
 weighted first others =
   let
-    normalize (weight, _) =
+    normalize { weight = weight } =
       abs weight
 
     total =
-      normalize first + List.sum (List.map normalize others)
+      normalize first + (Array.foldl (\weight sum -> sum + normalize weight) 0 others)
   in
   map (getByWeight first others) (float 0 total)
 
 
-getByWeight : (Float, a) -> List (Float, a) -> Float -> a
-getByWeight (weight, value) others countdown =
-  case others of
-    [] ->
+getByWeight : { weight : Float, value : a } -> Array { weight : Float, value : a } -> Float -> a
+getByWeight {weight = weight, value = value} others countdown =
+  case Array.popFirst others of
+    Nothing ->
       value
 
-    second :: otherOthers ->
+    Just { first = second, rest = otherOthers } ->
       if countdown <= abs weight then
         value
       else
@@ -392,9 +392,9 @@ map : (a -> b) -> Generator a -> Generator b
 map func (Generator genA) =
   Generator (\seed0 ->
     let
-      (a, seed1) = genA seed0
+      { value = a, seed = seed1 } = genA seed0
     in
-      (func a, seed1)
+      { value = func a, seed = seed1 }
   )
 
 
@@ -421,10 +421,10 @@ Now whenever we run the `enemy` generator we get an enemy with full health,
 no rotation, and a random position! Now say we want to start with between
 five and ten enemies on screen:
 
-    initialEnemies : Random.Generator (List Enemy)
+    initialEnemies : Random.Generator (Array Enemy)
     initialEnemies =
       Random.int 5 10
-        |> Random.andThen (\num -> Random.list num enemy)
+        |> Random.andThen (\num -> Random.array num enemy)
 
 We will generate a number between five and ten, **and then** generate
 that number of enemies!
@@ -437,10 +437,10 @@ map2 : (a -> b -> c) -> Generator a -> Generator b -> Generator c
 map2 func (Generator genA) (Generator genB) =
   Generator (\seed0 ->
     let
-      (a, seed1) = genA seed0
-      (b, seed2) = genB seed1
+      { value = a, seed = seed1 } = genA seed0
+      { value = b, seed = seed2 } = genB seed1
     in
-      (func a b, seed2)
+      { value = func a b, seed = seed2 }
   )
 
 
@@ -471,11 +471,11 @@ map3 : (a -> b -> c -> d) -> Generator a -> Generator b -> Generator c -> Genera
 map3 func (Generator genA) (Generator genB) (Generator genC) =
   Generator (\seed0 ->
     let
-      (a, seed1) = genA seed0
-      (b, seed2) = genB seed1
-      (c, seed3) = genC seed2
+      { value = a, seed = seed1 } = genA seed0
+      { value = b, seed = seed2 } = genB seed1
+      { value = c, seed = seed3 } = genC seed2
     in
-      (func a b c, seed3)
+      { value = func a b c, seed = seed3 }
   )
 
 
@@ -525,12 +525,12 @@ map4 : (a -> b -> c -> d -> e) -> Generator a -> Generator b -> Generator c -> G
 map4 func (Generator genA) (Generator genB) (Generator genC) (Generator genD) =
   Generator (\seed0 ->
     let
-      (a, seed1) = genA seed0
-      (b, seed2) = genB seed1
-      (c, seed3) = genC seed2
-      (d, seed4) = genD seed3
+      { value = a, seed = seed1 } = genA seed0
+      { value = b, seed = seed2 } = genB seed1
+      { value = c, seed = seed3 } = genC seed2
+      { value = d, seed = seed4 } = genD seed3
     in
-      (func a b c d, seed4)
+      { value = func a b c d, seed = seed4 }
   )
 
 
@@ -546,20 +546,20 @@ map5 : (a -> b -> c -> d -> e -> f) -> Generator a -> Generator b -> Generator c
 map5 func (Generator genA) (Generator genB) (Generator genC) (Generator genD) (Generator genE) =
   Generator (\seed0 ->
     let
-      (a, seed1) = genA seed0
-      (b, seed2) = genB seed1
-      (c, seed3) = genC seed2
-      (d, seed4) = genD seed3
-      (e, seed5) = genE seed4
+      { value = a, seed = seed1 } = genA seed0
+      { value = b, seed = seed2 } = genB seed1
+      { value = c, seed = seed3 } = genC seed2
+      { value = d, seed = seed4 } = genD seed3
+      { value = e, seed = seed5 } = genE seed4
     in
-      (func a b c d e, seed5)
+      { value = func a b c d e, seed = seed5 }
   )
 
 
 {-| Generate fancy random values.
 
 We have seen examples of how `andThen` can be used to generate variable length
-lists in the [`list`](#list) and [`map2`](#map2) docs. We saw how it could help
+arrays in the [`array`](#array) and [`map2`](#map2) docs. We saw how it could help
 generate a quadtree in the [`map4`](#map4) docs.
 
 Anything you could ever want can be defined using this operator! As one last
@@ -581,7 +581,7 @@ andThen : (a -> Generator b) -> Generator a -> Generator b
 andThen callback (Generator genA) =
   Generator (\seed ->
     let
-      (result, newSeed) = genA seed
+      { value = result, seed = newSeed } = genA seed
       (Generator genB) = callback result
     in
       genB newSeed
@@ -593,7 +593,7 @@ random number of probabilities:
 
     import Random
 
-    probabilities : Random.Generator (List Float)
+    probabilities : Random.Generator (Array Float)
     probabilities =
       Random.andThen identity <|
         Random.uniform
@@ -603,7 +603,7 @@ random number of probabilities:
               (Random.lazy (\_ -> probabilities))
           ]
 
-In 50% of cases we end the list. In 50% of cases we generate a probability and
+In 50% of cases we end the array. In 50% of cases we generate a probability and
 add it onto a random number of probabilities. The `lazy` call is crucial
 because it means we do not unroll the generator unless we need to.
 
@@ -613,11 +613,11 @@ This is a pretty subtle issue, so I recommend reading more about it
 **Note:** You can delay evaluation with `andThen` too. The thing that matters
 is that you have a function call that delays the creation of the generator!
 -}
-lazy : (() -> Generator a) -> Generator a
+lazy : (Unit -> Generator a) -> Generator a
 lazy callback =
   Generator (\seed ->
     let
-      (Generator gen) = callback ()
+      (Generator gen) = callback Unit
     in
       gen seed
   )
@@ -718,10 +718,10 @@ random integers between one and ten.
 
 **Note 1:** If you are not familiar with commands yet, start working through
 [guide.elm-lang.org][guide]. It builds up to an example that generates
-random numbers. Commands are one of the core concepts in Elm, and it will
+random numbers. Commands are one of the core concepts in Gren, and it will
 be faster overall to invest in understanding them _now_ rather than copy/pasting
 your way to frustration! And if you feel stuck on something, definitely ask
-about it in [the Elm slack][slack]. Folks are happy to help!
+about it in [the Gren slack][slack]. Folks are happy to help!
 
 **Note 2:** The random `Generator` API is quite similar to the JSON `Decoder` API.
 Both are building blocks that snap together with `map`, `map2`, etc. You can read
@@ -732,27 +732,27 @@ more about JSON decoders [here][json] to see the similarity.
 [json]: https://guide.elm-lang.org/interop/json.html
 -}
 type Generator a =
-    Generator (Seed -> (a, Seed))
+    Generator (Seed -> { value : a, seed : Seed })
 
 
-{-| So you need _reproducable_ randomness for some reason.
+{-| So you need _reproducible_ randomness for some reason.
 
 This `step` function lets you use a `Generator` without commands. It is a
-normal Elm function. Same input, same output! So to get a 3D point you could
+normal Gren function. Same input, same output! So to get a 3D point you could
 say:
 
     import Random
 
     type alias Point3D = { x : Float, y : Float, z : Float }
 
-    point3D : Random.Seed -> (Point3D, Random.Seed)
+    point3D : Random.Seed -> { value : Point3D, seed : Random.Seed }
     point3D seed0 =
       let
-        (x, seed1) = Random.step (Random.int 0 100) seed0
-        (y, seed2) = Random.step (Random.int 0 100) seed1
-        (z, seed3) = Random.step (Random.int 0 100) seed2
+        { value = x, seed = seed1 } = Random.step (Random.int 0 100) seed0
+        { value = y, seed = seed2 } = Random.step (Random.int 0 100) seed1
+        { value = z, seed = seed3 } = Random.step (Random.int 0 100) seed2
       in
-        ( Point3D x y z, seed3 )
+        { value = Point3D x y z, seed = seed3 }
 
 Notice that we use different seeds on each line! If we instead used `seed0`
 for everything, the `x`, `y`, and `z` values would always be exactly the same!
@@ -762,12 +762,12 @@ Threading seeds around is not super fun, so if you really need this, it is
 best to build your `Generator` like normal and then just `step` it all at
 once at the top of your program.
 -}
-step : Generator a -> Seed -> (a, Seed)
+step : Generator a -> Seed -> { value : a, seed : Seed }
 step (Generator generator) seed =
   generator seed
 
 
-{-| Create a `Seed` for _reproducable_ randomness.
+{-| Create a `Seed` for _reproducible_ randomness.
 
     import Random
 
@@ -779,7 +779,7 @@ If you hard-code your `Seed` like this, every run will be the same. This can
 be useful if you are testing a game with randomness and want it to be easy to
 reproduce past games.
 
-In practice, you may want to get the initial seed by (1) sending it to Elm
+In practice, you may want to get the initial seed by (1) sending it to Gren
 through flags or (2) using `Time.now` to get a number that the user has not
 seen before. (Flags are described on [this page][flags].)
 
@@ -836,18 +836,18 @@ random points:
 
     import Random
 
-    point : Random.Generator (Int, Int)
+    point : Random.Generator { first : Int, second : Int }
     point =
       Random.pair (Random.int -100 100) (Random.int -100 100)
 
-    type Msg = NewPoint (Int, Int)
+    type Msg = NewPoint { first : Int, second : Int }
 
     newPoint : Cmd Msg
     newPoint =
       Random.generate NewPoint point
 
 Each time you run the `newPoint` command, it will produce a new 2D point like
-`(57, 18)` or `(-82, 6)`.
+`{ first = 57, second = 18 }` or `{ first = -82, second = 6 }`.
 
 **Note:** Read through [guide.elm-lang.org][guide] to learn how commands work.
 If you are coming from JS it can be hopelessly frustrating if you just try to
@@ -875,15 +875,15 @@ init =
   Task.andThen (\time -> Task.succeed (initialSeed (Time.posixToMillis time))) Time.now
 
 
-onEffects : Platform.Router msg Never -> List (MyCmd msg) -> Seed -> Task Never Seed
+onEffects : Platform.Router msg Never -> Array (MyCmd msg) -> Seed -> Task Never Seed
 onEffects router commands seed =
-  case commands of
-    [] ->
+  case Array.popFirst commands of
+    Nothing ->
       Task.succeed seed
 
-    Generate generator :: rest ->
+    Just { first = Generate generator, rest = rest } ->
       let
-        (value, newSeed) =
+        { value = value, seed = newSeed } =
           step generator seed
       in
           Task.andThen
