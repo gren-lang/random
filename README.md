@@ -20,7 +20,7 @@ roll =
 
 usuallyTrue : Random.Generator Bool
 usuallyTrue =
-  Random.weighted (80, True) [ (20, False) ]
+  Random.weighted { weight = 80, value = True } [ { weight = 20, value = False } ]
 ```
 
 In each of these defines _how_ to generate random values. The most interesting case is `usuallyTrue` which generates `True` 80% of the time and `False` 20% of the time!
