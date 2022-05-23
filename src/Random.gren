@@ -78,7 +78,7 @@ int a b =
     Generator
         (\seed0 ->
             let
-                { lo = lo, hi = hi } =
+                { lo, hi } =
                     if a < b then
                         { lo = a, hi = b }
                     else
