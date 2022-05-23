@@ -403,7 +403,7 @@ generate enemy ships with a random location:
 
     import Random
 
-    type alias Enemy
+    type alias Enemy =
       { health : Float
       , rotation : Float
       , x : Float
@@ -413,7 +413,13 @@ generate enemy ships with a random location:
     enemy : Random.Generator Enemy
     enemy =
       Random.map2
-        (\x y -> Enemy 100 0 x y)
+        (\x y ->
+          { health = 100
+          , rotation = 0
+          , x = x
+          , y = y
+          }
+        )
         (Random.float 0 100)
         (Random.float 0 100)
 
@@ -458,7 +464,10 @@ map2 func (Generator genA) (Generator genB) =
 
     spin : Random.Generator Spin
     spin =
-      Random.map3 Spin symbol symbol symbol
+      Random.map3 (\one two three -> { one = one, two = two, three = three })
+        symbol
+        symbol
+        symbol
 
     symbol : Random.Generator Symbol
     symbol =
@@ -745,14 +754,18 @@ say:
 
     type alias Point3D = { x : Float, y : Float, z : Float }
 
+    makePoint3D : Float -> Float -> Float -> Point3D
+    makePoint3D x y z =
+      { x = x, y = y, z = z }
+
     point3D : Random.Seed -> { value : Point3D, seed : Random.Seed }
     point3D seed0 =
       let
-        { value = x, seed = seed1 } = Random.step (Random.int 0 100) seed0
-        { value = y, seed = seed2 } = Random.step (Random.int 0 100) seed1
-        { value = z, seed = seed3 } = Random.step (Random.int 0 100) seed2
+        { value = x, seed = seed1 } = Random.step (Random.float 0 100) seed0
+        { value = y, seed = seed2 } = Random.step (Random.float 0 100) seed1
+        { value = z, seed = seed3 } = Random.step (Random.float 0 100) seed2
       in
-        { value = Point3D x y z, seed = seed3 }
+        { value = makePoint3D x y z, seed = seed3 }
 
 Notice that we use different seeds on each line! If we instead used `seed0`
 for everything, the `x`, `y`, and `z` values would always be exactly the same!
