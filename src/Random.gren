@@ -338,15 +338,10 @@ weighted first others =
       abs weight
 
     total =
-      normalize first + arraySum (Array.map normalize others)
+      normalize first + (Array.foldl (\weight sum -> sum + normalize weight) 0 others)
   in
   map (getByWeight first others) (float 0 total)
 
-{-| TODO: Add to Array module?
--}
-arraySum : Array number -> number
-arraySum =
-  Array.foldl (+) 0
 
 getByWeight : { weight : Float, value : a } -> Array { weight : Float, value : a } -> Float -> a
 getByWeight {weight = weight, value = value} others countdown =
