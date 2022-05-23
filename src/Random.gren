@@ -216,7 +216,7 @@ a point in a certain 2D space:
 
     import Random
 
-    randomPoint : Random.Generator (Float, Float)
+    randomPoint : Random.Generator { first : Float, second : Float }
     randomPoint =
         Random.pair (Random.float -200 200) (Random.float -100 100)
 
@@ -315,12 +315,12 @@ on ⚄ and ⚅ more often than the other faces:
     roll : Random.Generator Face
     roll =
       Random.weighted
-        (10, One)
-        [ (10, Two)
-        , (10, Three)
-        , (10, Four)
-        , (20, Five)
-        , (40, Six)
+        { weight : 10, value : One }
+        [ { weight : 10, value : Two }
+        , { weight : 10, value : Three }
+        , { weight : 10, value : Four }
+        , { weight : 20, value : Five }
+        , { weight : 40, value : Six }
         ]
 
 So there is a 40% chance of getting `Six`, a 20% chance of getting `Five`, and
@@ -745,14 +745,14 @@ say:
 
     type alias Point3D = { x : Float, y : Float, z : Float }
 
-    point3D : Random.Seed -> (Point3D, Random.Seed)
+    point3D : Random.Seed -> { value : Point3D, seed : Random.Seed }
     point3D seed0 =
       let
-        (x, seed1) = Random.step (Random.int 0 100) seed0
-        (y, seed2) = Random.step (Random.int 0 100) seed1
-        (z, seed3) = Random.step (Random.int 0 100) seed2
+        { value = x, seed = seed1 } = Random.step (Random.int 0 100) seed0
+        { value = y, seed = seed2 } = Random.step (Random.int 0 100) seed1
+        { value = z, seed = seed3 } = Random.step (Random.int 0 100) seed2
       in
-        ( Point3D x y z, seed3 )
+        { value = Point3D x y z, seed = seed3 }
 
 Notice that we use different seeds on each line! If we instead used `seed0`
 for everything, the `x`, `y`, and `z` values would always be exactly the same!
@@ -836,18 +836,18 @@ random points:
 
     import Random
 
-    point : Random.Generator (Int, Int)
+    point : Random.Generator { first : Int, second : Int }
     point =
       Random.pair (Random.int -100 100) (Random.int -100 100)
 
-    type Msg = NewPoint (Int, Int)
+    type Msg = NewPoint { first : Int, second : Int }
 
     newPoint : Cmd Msg
     newPoint =
       Random.generate NewPoint point
 
 Each time you run the `newPoint` command, it will produce a new 2D point like
-`(57, 18)` or `(-82, 6)`.
+`{ first = 57, second = 18 }` or `{ first = -82, second = 6 }`.
 
 **Note:** Read through [guide.elm-lang.org][guide] to learn how commands work.
 If you are coming from JS it can be hopelessly frustrating if you just try to
