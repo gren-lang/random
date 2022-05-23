@@ -718,10 +718,10 @@ random integers between one and ten.
 
 **Note 1:** If you are not familiar with commands yet, start working through
 [guide.elm-lang.org][guide]. It builds up to an example that generates
-random numbers. Commands are one of the core concepts in Elm, and it will
+random numbers. Commands are one of the core concepts in Gren, and it will
 be faster overall to invest in understanding them _now_ rather than copy/pasting
 your way to frustration! And if you feel stuck on something, definitely ask
-about it in [the Elm slack][slack]. Folks are happy to help!
+about it in [the Gren slack][slack]. Folks are happy to help!
 
 **Note 2:** The random `Generator` API is quite similar to the JSON `Decoder` API.
 Both are building blocks that snap together with `map`, `map2`, etc. You can read
@@ -738,7 +738,7 @@ type Generator a =
 {-| So you need _reproducible_ randomness for some reason.
 
 This `step` function lets you use a `Generator` without commands. It is a
-normal Elm function. Same input, same output! So to get a 3D point you could
+normal Gren function. Same input, same output! So to get a 3D point you could
 say:
 
     import Random
@@ -779,7 +779,7 @@ If you hard-code your `Seed` like this, every run will be the same. This can
 be useful if you are testing a game with randomness and want it to be easy to
 reproduce past games.
 
-In practice, you may want to get the initial seed by (1) sending it to Elm
+In practice, you may want to get the initial seed by (1) sending it to Gren
 through flags or (2) using `Time.now` to get a number that the user has not
 seen before. (Flags are described on [this page][flags].)
 
