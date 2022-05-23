@@ -223,9 +223,9 @@ a point in a certain 2D space:
 Maybe you are doing an animation with SVG and want to randomly generate some
 entities?
 -}
-pair : Generator a -> Generator b -> Generator { a : a, b : b }
+pair : Generator a -> Generator b -> Generator { first : a, second : b }
 pair genA genB =
-  map2 (\a b -> { a = a, b = b }) genA genB
+  map2 (\a b -> { first = a, second = b }) genA genB
 
 
 {-| Generate a list of random values.
